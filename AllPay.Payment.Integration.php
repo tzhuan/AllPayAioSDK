@@ -358,7 +358,6 @@ class AllInOne {
             "DeviceSource" => DeviceType::PC,
             "IgnorePayment" => '',
             "PlatformID" => '',
-            "PlatformChargeFee" => '',
             "InvoiceMark" => InvoiceState::No,
             "Items" => array()
         );
@@ -533,7 +532,6 @@ class AllInOne {
             $arParameters = array_merge($arParameters, $this->SendExtend);
 			// 處理延伸參數
             if (!$this->Send['InvoiceMark']) { unset($arParameters['InvoiceMark']); }
-            if (!$this->Send['PlatformChargeFee']) { unset($arParameters['PlatformChargeFee']); }
             if (!$this->Send['PlatformID']) { unset($arParameters['PlatformID']); }
             // 整理全功能參數。
             if ($this->Send['ChoosePayment'] == PaymentMethod::ALL) {
@@ -766,6 +764,8 @@ class AllInOne {
         foreach ($_POST as $keys => $value) {
 			if ($keys == 'view' || $keys == 'hikashop_front_end_main') {
 				// Customize to Skip Parameters for HikaShop
+			} else if ($keys == 'mijoshop_store_id' || $keys == 'language') {
+				// Customize to Skip Parameters for MijoShop
 			} else {
 				$arParameters[strtolower($keys)] = $value;
 			}
@@ -1094,7 +1094,7 @@ class AllInOne {
             }
 
             if (array_key_exists('RtnCode', $arFeedback) && $arFeedback['RtnCode'] != '1') {
-                array_push($arErrors, sprintf('#%s: %s', array($arFeedback['RtnCode'], $arFeedback['RtnMsg'])));
+                array_push($arErrors, vsprintf('#%s: %s', array($arFeedback['RtnCode'], $arFeedback['RtnMsg'])));
             }
         }
 
