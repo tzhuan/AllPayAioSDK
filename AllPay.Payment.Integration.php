@@ -527,23 +527,30 @@ class AllInOne {
         }
         // 輸出表單字串。
         if (sizeof($arErrors) == 0) {
+            // 信用卡特殊邏輯判斷(行動裝置畫面的信用卡分期處理，不支援定期定額)
+            if ($this->Send['ChoosePayment'] == PaymentMethod::Credit && $this->Send['DeviceSource'] == DeviceType::Mobile && !$this->SendExtend['PeriodAmount']) {
+                $this->Send['ChoosePayment'] = PaymentMethod::ALL;
+                $this->Send['IgnorePayment'] = 'WebATM#ATM#CVS#BARCODE#Alipay#Tenpay#TopUpUsed#APPBARCODE#AccountLink';
+            }
+            // 產生畫面控制項與傳遞參數。
             $arParameters = array('MerchantID' => $this->MerchantID, 'PaymentType' => $this->PaymentType, 'ItemName' => $szItemName, 'ItemURL' => $this->Send['ItemURL']);
             $arParameters = array_merge($arParameters, $this->Send);
             $arParameters = array_merge($arParameters, $this->SendExtend);
-			// 處理延伸參數
+            // 處理延伸參數
             if (!$this->Send['InvoiceMark']) { unset($arParameters['InvoiceMark']); }
             if (!$this->Send['PlatformID']) { unset($arParameters['PlatformID']); }
             // 整理全功能參數。
             if ($this->Send['ChoosePayment'] == PaymentMethod::ALL) {
-                unset($arParameters['CreditInstallment']);
                 unset($arParameters['ExecTimes']);
                 unset($arParameters['Frequency']);
-                unset($arParameters['InstallmentAmount']);
                 unset($arParameters['PeriodAmount']);
                 unset($arParameters['PeriodReturnURL']);
                 unset($arParameters['PeriodType']);
-                unset($arParameters['Redeem']);
-                unset($arParameters['UnionPay']);
+
+                if (!$arParameters['CreditInstallment']) { unset($arParameters['CreditInstallment']); }
+                if (!$arParameters['InstallmentAmount']) { unset($arParameters['InstallmentAmount']); }
+                if (!$arParameters['Redeem']) { unset($arParameters['Redeem']); }
+                if (!$arParameters['UnionPay']) { unset($arParameters['UnionPay']); }
 
                 if (!$this->Send['IgnorePayment']) { unset($arParameters['IgnorePayment']); }
                 if (!$this->SendExtend['ClientRedirectURL']) { unset($arParameters['ClientRedirectURL']); }
