@@ -1,0 +1,11 @@
+{
+	"name": "allpay/all-in-one",
+	"require": {
+		"ext-mbstring": "*"
+	},
+	"autoload": {
+		"classmap": [
+			"AllPay.Payment.Integration.php"
+		]
+	}
+}
