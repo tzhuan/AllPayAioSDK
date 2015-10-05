@@ -513,6 +513,7 @@ class AllInOne {
         $szInvoiceItemCount = '';
         $szInvoiceItemWord = '';
         $szInvoiceItemPrice = '';
+        $szInvoiceItemTaxType = '';
         $InvSptr = '|';
         // 檢查資料。
         if (strlen($this->ServiceURL) == 0) {
