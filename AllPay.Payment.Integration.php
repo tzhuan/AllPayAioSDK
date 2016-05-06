@@ -318,6 +318,84 @@ abstract class InvoiceState {
 }
 
 /**
+ * 電子發票載具類別
+ */
+abstract class CarruerType {
+  // 無載具
+  const None = '';
+  
+  // 會員載具
+  const Member = '1';
+  
+  // 買受人自然人憑證
+  const Citizen = '2';
+  
+  // 買受人手機條碼
+  const Cellphone = '3';
+}
+
+/**
+ * 電子發票列印註記
+ */
+abstract class PrintMark {
+  // 不列印
+  const No = '0';
+  
+  // 列印
+  const Yes = '1';
+}
+
+/**
+ * 電子發票捐贈註記
+ */
+abstract class Donation {
+  // 捐贈
+  const Yes = '1';
+  
+  // 不捐贈
+  const No = '2';
+}
+
+/**
+ * 通關方式
+ */
+abstract class ClearanceMark {
+  // 經海關出口
+  const Yes = '1';
+  
+  // 非經海關出口
+  const No = '2';
+}
+
+/**
+ * 課稅類別
+ */
+abstract class TaxType {
+  // 應稅
+  const Dutiable = '1';
+  
+  // 零稅率
+  const Zero = '2';
+  
+  // 免稅
+  const Free = '3';
+  
+  // 應稅與免稅混合(限收銀機發票無法分辦時使用，且需通過申請核可)
+  const Mix = '9';
+}
+
+/**
+ * 字軌類別
+ */
+abstract class InvType {
+  // 一般稅額
+  const General = '07';
+  
+  // 特種稅額
+  const Special = '08';
+}
+
+/**
  * AllInOne short summary.
  *
  * AllInOne description.
@@ -377,7 +455,22 @@ class AllInOne {
             // Credit 定期定額延伸參數。
             "PeriodAmount" => '', "PeriodType" => '', "Frequency" => '', "ExecTimes" => '',
             // 回傳網址的延伸參數。
-            "PaymentInfoURL" => '', "PeriodReturnURL" => ''
+            "PaymentInfoURL" => '', "PeriodReturnURL" => '',
+            // 電子發票延伸參數。
+            "CustomerIdentifier" => '',
+            "CarruerType" => CarruerType::None,
+            "CustomerID" => '',
+            "Donation" => Donation::No,
+            "Print" => PrintMark::No,
+            "CustomerName" => '',
+            "CustomerAddr" => '',
+            "CustomerPhone" => '',
+            "CustomerEmail" => '',
+            "ClearanceMark" => '',
+            "CarruerNum" => '',
+            "LoveCode" => '',
+            "InvoiceRemark" => '',
+            "DelayDay" => 0,
         );
         $this->Query = array(
             'MerchantTradeNo' => '', 'TimeStamp' => ''
@@ -416,6 +509,12 @@ class AllInOne {
         $szAlipayItemName = '';
         $szAlipayItemCounts = '';
         $szAlipayItemPrice = '';
+        $szInvoiceItemName = '';
+        $szInvoiceItemCount = '';
+        $szInvoiceItemWord = '';
+        $szInvoiceItemPrice = '';
+        $szInvoiceItemTaxType = '';
+        $InvSptr = '|';
         // 檢查資料。
         if (strlen($this->ServiceURL) == 0) {
             array_push($arErrors, 'ServiceURL is required.');
@@ -525,6 +624,272 @@ class AllInOne {
         } else {
             array_push($arErrors, "Goods information not found.");
         }
+        
+        // 檢查電子發票參數
+        if (strlen($this->Send['InvoiceMark']) > 1) {
+            array_push($arErrors, "InvoiceMark max length as 1.");
+        } else {
+          if ($this->Send['InvoiceMark'] == InvoiceState::Yes) {
+              // RelateNumber(不可為空)
+              if (strlen($this->SendExtend['RelateNumber']) == 0) {
+                  array_push($arErrors, "RelateNumber is required.");
+              } else {
+                  if (strlen($this->SendExtend['RelateNumber']) > 30) {
+                      array_push($arErrors, "RelateNumber max length as 30.");
+                  }
+              }
+              
+              // CustomerIdentifier(預設為空字串)
+              if (strlen($this->SendExtend['CustomerIdentifier']) > 0) {
+                  if (strlen($this->SendExtend['CustomerIdentifier']) != 8) {
+                      array_push($arErrors, "CustomerIdentifier length should be 8.");
+                  }
+              }
+              
+              // CarruerType(預設為None)
+              if (strlen($this->SendExtend['CarruerType']) > 1) {
+                  array_push($arErrors, "CarruerType max length as 1.");
+              } else {
+                  // 統一編號不為空字串時，載具類別請設定空字串
+                  if (strlen($this->SendExtend['CustomerIdentifier']) > 0) {
+                      if ($this->SendExtend['CarruerType'] != CarruerType::None) {
+                          array_push($arErrors, "CarruerType should be None.");
+                      }
+                  }
+              }
+              
+              // CustomerID(預設為空字串)
+              if (strlen($this->SendExtend['CustomerID']) > 20) {
+                  array_push($arErrors, "CustomerID max length as 20.");
+              } else {
+                  // 當載具類別為會員載具(Member)時，此參數不可為空字串
+                  if ($this->SendExtend['CarruerType'] == CarruerType::Member) {
+                      if (strlen($this->SendExtend['CustomerID']) == 0) {
+                          array_push($arErrors, "CustomerID is required.");
+                      }
+                  }
+              }
+              
+              // Donation(預設為No)
+              if (strlen($this->SendExtend['Donation']) > 1) {
+                  array_push($arErrors, "Donation max length as 1.");
+              } else {
+                  // 統一編號不為空字串時，請設定不捐贈(No)
+                  if (strlen($this->SendExtend['CustomerIdentifier']) > 0) {
+                      if ($this->SendExtend['Donation'] != Donation::No) {
+                          array_push($arErrors, "Donation should be No.");
+                      }
+                  } else {
+                      if (strlen($this->SendExtend['Donation']) == 0) {
+                          $this->SendExtend['Donation'] = Donation::No;
+                      }
+                  }
+              }
+
+              // Print(預設為No)
+              if (strlen($this->SendExtend['Print']) > 1) {
+                  array_push($arErrors, "Print max length as 1.");
+              } else {
+                  // 捐贈註記為捐贈(Yes)時，請設定不列印(No)
+                  if ($this->SendExtend['Donation'] == Donation::Yes) {
+                      if ($this->SendExtend['Print'] != PrintMark::No) {
+                          array_push($arErrors, "Print should be No.");
+                      }
+                  } else {
+                      // 統一編號不為空字串時，請設定列印(Yes)
+                      if (strlen($this->SendExtend['CustomerIdentifier']) > 0) {
+                          if ($this->SendExtend['Print'] != PrintMark::Yes) {
+                              array_push($arErrors, "Print should be Yes.");
+                          }
+                      } else {
+                          if (strlen($this->SendExtend['Print']) == 0) {
+                              $this->SendExtend['Print'] = PrintMark::No;
+                          }
+                          
+                          // 載具類別為會員載具(Member)、買受人自然人憑證(Citizen)、買受人手機條碼(Cellphone)時，請設定不列印(No)
+                          $notPrint = array(CarruerType::Member, CarruerType::Citizen, CarruerType::Cellphone);
+                          if (in_array($this->SendExtend['CarruerType'], $notPrint) and $this->SendExtend['Print'] == PrintMark::Yes) {
+                              array_push($arErrors, "Print should be No.");
+                          }
+                      }
+                  }
+                  
+              }
+              
+              // CustomerName(UrlEncode, 預設為空字串)
+              if (mb_strlen($this->SendExtend['CustomerName'], 'UTF-8') > 20) {
+                  array_push($arErrors, "CustomerName max length as 20.");
+              } else {
+                  // 列印註記為列印(Yes)時，此參數不可為空字串
+                  if ($this->SendExtend['Print'] == PrintMark::Yes) {
+                      if (mb_strlen($this->SendExtend['CustomerName'], 'UTF-8') == 0) {
+                          array_push($arErrors, "CustomerName is required.");
+                      }
+                  }
+              }
+              
+              // CustomerAddr(UrlEncode, 預設為空字串)
+              if (mb_strlen($this->SendExtend['CustomerAddr'], 'UTF-8') > 200) {
+                  array_push($arErrors, "CustomerAddr max length as 200.");
+              } else {
+                  // 列印註記為列印(Yes)時，此參數不可為空字串
+                  if ($this->SendExtend['Print'] == PrintMark::Yes) {
+                      if (mb_strlen($this->SendExtend['CustomerAddr'], 'UTF-8') == 0) {
+                          array_push($arErrors, "CustomerAddr is required.");
+                      }
+                  }
+              }
+              
+              // CustomerPhone(與CustomerEmail擇一不可為空)
+              if (strlen($this->SendExtend['CustomerPhone']) > 20) {
+                  array_push($arErrors, "CustomerPhone max length as 20.");
+              }
+              
+              // CustomerEmail(UrlEncode, 預設為空字串, 與CustomerPhone擇一不可為空)
+              if (strlen($this->SendExtend['CustomerEmail']) > 200) {
+                  array_push($arErrors, "CustomerEmail max length as 200.");
+              }
+              
+              if (strlen($this->SendExtend['CustomerPhone']) == 0 and strlen($this->SendExtend['CustomerEmail']) == 0) {
+                  array_push($arErrors, "CustomerPhone or CustomerEmail is required.");
+              }
+              
+              // TaxType(不可為空)
+              if (strlen($this->SendExtend['TaxType']) > 1) {
+                  array_push($arErrors, "TaxType max length as 1.");
+              } else {
+                  if (strlen($this->SendExtend['TaxType']) == 0) {
+                      array_push($arErrors, "TaxType is required.");
+                  }
+              }
+              
+              // ClearanceMark(預設為空字串)
+              if (strlen($this->SendExtend['ClearanceMark']) > 1) {
+                  array_push($arErrors, "ClearanceMark max length as 1.");
+              } else {
+                  // 請設定空字串，僅課稅類別為零稅率(Zero)時，此參數不可為空字串
+                  if ($this->SendExtend['TaxType'] == TaxType::Zero) {
+                      if ($this->SendExtend['ClearanceMark'] != ClearanceMark::Yes and $this->SendExtend['ClearanceMark'] != ClearanceMark::No) {
+                          array_push($arErrors, "ClearanceMark is required.");
+                      }
+                  } else {
+                      if (strlen($this->SendExtend['ClearanceMark']) > 0) {
+                          array_push($arErrors, "Please remove ClearanceMark.");
+                      }
+                  }
+              }
+              
+              // CarruerNum(預設為空字串)
+              if (strlen($this->SendExtend['CarruerNum']) > 64) {
+                  array_push($arErrors, "CarruerNum max length as 64.");
+              } else {
+                  switch ($this->SendExtend['CarruerType']) {
+                      // 載具類別為無載具(None)或會員載具(Member)時，請設定空字串
+                      case CarruerType::None:
+                      case CarruerType::Member:
+                          if (strlen($this->SendExtend['CarruerNum']) > 0) {
+                              array_push($arErrors, "Please remove CarruerNum.");
+                          }
+                          break;
+                      // 載具類別為買受人自然人憑證(Citizen)時，請設定自然人憑證號碼，前2碼為大小寫英文，後14碼為數字
+                      case CarruerType::Citizen:
+                          if (!preg_match('/^[a-zA-Z]{2}\d{14}$/', $this->SendExtend['CarruerNum']))
+                          {
+                              array_push($arErrors, "Invalid CarruerNum.");
+                          }
+                          break;
+                      // 載具類別為買受人手機條碼(Cellphone)時，請設定手機條碼，第1碼為「/」，後7碼為大小寫英文、數字、「+」、「-」或「.」
+                      case CarruerType::Cellphone:
+                          if (!preg_match('/^\/{1}[0-9a-zA-Z+-.]{7}$/', $this->SendExtend['CarruerNum'])) {
+                              array_push($arErrors, "Invalid CarruerNum.");
+                          }
+                          break;
+                      default:
+                          array_push($arErrors, "Please remove CarruerNum.");
+                  }
+              }
+              
+              // LoveCode(預設為空字串)
+              // 捐贈註記為捐贈(Yes)時，參數長度固定3~7碼，請設定全數字或第1碼大小寫「X」，後2~6碼全數字
+              if ($this->SendExtend['Donation'] == Donation::Yes) {
+                  if (!preg_match('/^([xX]{1}[0-9]{2,6}|[0-9]{3,7})$/', $this->SendExtend['LoveCode'])) {
+                      array_push($arErrors, "Invalid LoveCode.");
+                  }
+              } else {
+                  if (strlen($this->SendExtend['LoveCode']) > 0) {
+                      array_push($arErrors, "Please remove LoveCode.");
+                  }
+              }
+              
+              // InvoiceItemName(UrlEncode, 不可為空)
+              // InvoiceItemCount(不可為空)
+              // InvoiceItemWord(UrlEncode, 不可為空)
+              // InvoiceItemPrice(不可為空)
+              // InvoiceItemTaxType(不可為空)
+              if (sizeof($this->SendExtend['InvoiceItems']) > 0) {
+                  $tmpItemName = array();
+                  $tmpItemCount = array();
+                  $tmpItemWord = array();
+                  $tmpItemPrice = array();
+                  $tmpItemTaxType = array();
+                  foreach ($this->SendExtend['InvoiceItems'] as $tmpItemInfo) {
+                      if (mb_strlen($tmpItemInfo['Name'], 'UTF-8') > 0) {
+                          array_push($tmpItemName, $tmpItemInfo['Name']);
+                      }
+                      if (strlen($tmpItemInfo['Count']) > 0) {
+                          array_push($tmpItemCount, $tmpItemInfo['Count']);
+                      }
+                      if (mb_strlen($tmpItemInfo['Word'], 'UTF-8') > 0) {
+                          array_push($tmpItemWord, $tmpItemInfo['Word']);
+                      }
+                      if (strlen($tmpItemInfo['Price']) > 0) {
+                          array_push($tmpItemPrice, $tmpItemInfo['Price']);
+                      }
+                      if (strlen($tmpItemInfo['TaxType']) > 0) {
+                          array_push($tmpItemTaxType, $tmpItemInfo['TaxType']);
+                      }
+                  }
+                  
+                  if ($this->SendExtend['TaxType'] == TaxType::Mix) {
+                      if (in_array(TaxType::Dutiable, $tmpItemTaxType) and in_array(TaxType::Free, $tmpItemTaxType)) {
+                          // Do nothing
+                      }  else {
+                          $tmpItemTaxType = array();
+                      }
+                  }
+                  if ((count($tmpItemName) + count($tmpItemCount) + count($tmpItemWord) + count($tmpItemPrice) + count($tmpItemTaxType)) == (count($tmpItemName) * 5)) {
+                      $szInvoiceItemName = implode($InvSptr, $tmpItemName);
+                      $szInvoiceItemCount = implode($InvSptr, $tmpItemCount);
+                      $szInvoiceItemWord = implode($InvSptr, $tmpItemWord);
+                      $szInvoiceItemPrice = implode($InvSptr, $tmpItemPrice);
+                      $szInvoiceItemTaxType = implode($InvSptr, $tmpItemTaxType);
+                  } else {
+                      array_push($arErrors, "Invalid Invoice Goods information.");
+                  }
+              } else {
+                  array_push($arErrors, "Invoice Goods information not found.");
+              }
+
+              // InvoiceRemark(UrlEncode, 預設為空字串)
+              
+              // DelayDay(不可為空, 預設為0)
+              // 延遲天數，範圍0~15，設定為0時，付款完成後立即開立發票
+              $this->SendExtend['DelayDay'] = (int)$this->SendExtend['DelayDay'];
+              if ($this->SendExtend['DelayDay'] < 0 or $this->SendExtend['DelayDay'] > 15) {
+                  array_push($arErrors, "DelayDay should be 0 ~ 15.");
+              } else {
+                  if (strlen($this->SendExtend['DelayDay']) == 0) {
+                      $this->SendExtend['DelayDay'] = 0;
+                  }
+              }
+              
+              // InvType(不可為空)
+              if (strlen($this->SendExtend['InvType']) == 0) {
+                  array_push($arErrors, "InvType is required.");
+              }
+          }
+        }
+        
         // 輸出表單字串。
         if (sizeof($arErrors) == 0) {
             // 信用卡特殊邏輯判斷(行動裝置畫面的信用卡分期處理，不支援定期定額)
@@ -533,11 +898,20 @@ class AllInOne {
                 $this->Send['IgnorePayment'] = 'WebATM#ATM#CVS#BARCODE#Alipay#Tenpay#TopUpUsed#APPBARCODE#AccountLink';
             }
             // 產生畫面控制項與傳遞參數。
-            $arParameters = array('MerchantID' => $this->MerchantID, 'PaymentType' => $this->PaymentType, 'ItemName' => $szItemName, 'ItemURL' => $this->Send['ItemURL']);
+            $arParameters = array(
+              'MerchantID' => $this->MerchantID,
+              'PaymentType' => $this->PaymentType,
+              'ItemName' => $szItemName,
+              'ItemURL' => $this->Send['ItemURL'],
+              'InvoiceItemName' => $szInvoiceItemName,
+              'InvoiceItemCount' => $szInvoiceItemCount,
+              'InvoiceItemWord' => $szInvoiceItemWord,
+              'InvoiceItemPrice' => $szInvoiceItemPrice,
+              'InvoiceItemTaxType' => $szInvoiceItemTaxType,
+            );
             $arParameters = array_merge($arParameters, $this->Send);
             $arParameters = array_merge($arParameters, $this->SendExtend);
             // 處理延伸參數
-            if (!$this->Send['InvoiceMark']) { unset($arParameters['InvoiceMark']); }
             if (!$this->Send['PlatformID']) { unset($arParameters['PlatformID']); }
             // 整理全功能參數。
             if ($this->Send['ChoosePayment'] == PaymentMethod::ALL) {
@@ -546,6 +920,12 @@ class AllInOne {
                 unset($arParameters['PeriodAmount']);
                 unset($arParameters['PeriodReturnURL']);
                 unset($arParameters['PeriodType']);
+
+                $arParameters = array_merge($arParameters, array(
+                    'AlipayItemName' => $szAlipayItemName,
+                    'AlipayItemCounts' => $szAlipayItemCounts,
+                    'AlipayItemPrice' => $szAlipayItemPrice
+                ));
 
                 if (!$arParameters['CreditInstallment']) { unset($arParameters['CreditInstallment']); }
                 if (!$arParameters['InstallmentAmount']) { unset($arParameters['InstallmentAmount']); }
@@ -697,7 +1077,48 @@ class AllInOne {
             }
 
             unset($arParameters['Items']);
-            ksort($arParameters);
+           
+            // 處理電子發票參數
+            unset($arParameters['InvoiceItems']);
+            if ($this->Send['InvoiceMark'] == InvoiceState::Yes) {
+                $encode_fields = array(
+                    'CustomerName',
+                    'CustomerAddr',
+                    'CustomerEmail',
+                    'InvoiceItemName',
+                    'InvoiceItemWord',
+                    'InvoiceRemark'
+                );
+                foreach ($encode_fields as $tmp_field) {
+                    $arParameters[$tmp_field] = urlencode($arParameters[$tmp_field]);
+                }
+            } else {
+                unset($arParameters['InvoiceMark']);
+                unset($arParameters['RelateNumber']);
+                unset($arParameters['CustomerIdentifier']);
+                unset($arParameters['CarruerType']);
+                unset($arParameters['CustomerID']);
+                unset($arParameters['Donation']);
+                unset($arParameters['Print']);
+                unset($arParameters['CustomerName']);
+                unset($arParameters['CustomerAddr']);
+                unset($arParameters['CustomerPhone']);
+                unset($arParameters['CustomerEmail']);
+                unset($arParameters['TaxType']);
+                unset($arParameters['ClearanceMark']);
+                unset($arParameters['CarruerNum']);
+                unset($arParameters['LoveCode']);
+                unset($arParameters['InvoiceItemName']);
+                unset($arParameters['InvoiceItemCount']);
+                unset($arParameters['InvoiceItemWord']);
+                unset($arParameters['InvoiceItemPrice']);
+                unset($arParameters['InvoiceItemTaxType']);
+                unset($arParameters['InvoiceRemark']);
+                unset($arParameters['DelayDay']);
+                unset($arParameters['InvType']);
+            }
+            
+            ksort($arParameters, SORT_NATURAL | SORT_FLAG_CASE);
 
             $szCheckMacValue = "HashKey=$this->HashKey";
             foreach ($arParameters as $key => $value) {
@@ -720,7 +1141,8 @@ class AllInOne {
             // MD5 編碼
             $szCheckMacValue = md5($szCheckMacValue);
 
-            $szHtml = '<div style="text-align:center;" ><form id="__allpayForm" method="post" target="' . $target . '" action="' . $this->ServiceURL . '">';
+            $szHtml = '<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />';
+            $szHtml .= '<div style="text-align:center;" ><form id="__allpayForm" method="post" target="' . $target . '" action="' . $this->ServiceURL . '">';
             foreach ($arParameters as $keys => $value) {
                 $szHtml .="<input type='hidden' name='$keys' value='$value' />";
             }
@@ -1214,4 +1636,5 @@ class AllInOne {
         return $rs;
     }
 
+    
 }
