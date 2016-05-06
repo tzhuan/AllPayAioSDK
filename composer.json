@@ -1,5 +1,6 @@
 {
 	"name": "allpay/all-in-one",
+	"version": "1.0.13",
 	"require": {
 		"ext-mbstring": "*"
 	},
