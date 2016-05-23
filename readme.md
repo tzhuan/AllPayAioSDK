@@ -1,3 +1,8 @@
+# Deprecated
+
+This project is deprecated.
+Please use [tzhuan/allpay-php](https://github.com/tzhuan/allpay-php) instead.
+
 # Allpay/all-in-one
 
 Composer package for [allpay](https://www.allpay.com.tw)'s SDK
